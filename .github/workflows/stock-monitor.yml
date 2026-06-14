@@ -1,0 +1,58 @@
+name: Stock Monitor
+
+on:
+  schedule:
+    - cron: "3/5 * * * *"
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: stock-monitor-repository
+  cancel-in-progress: false
+
+jobs:
+  check-stock:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    container:
+      image: mcr.microsoft.com/playwright/python:v1.59.0-noble
+      options: --ipc=host
+    env:
+      TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+      TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
+      HEADLESS: "true"
+      BROWSER_CHANNEL: ""
+      STATE_FILE: state.json
+      PAGE_TIMEOUT_SECONDS: "30"
+      PAGE_SETTLE_SECONDS: "12"
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Install Python dependency
+        run: python -m pip install --disable-pip-version-check -r requirements.txt
+
+      - name: Run tests
+        run: python -m unittest discover -s tests -v
+
+      - name: Check products
+        run: python bot.py --once
+
+      - name: Persist changed stock state
+        shell: bash
+        run: |
+          if git diff --quiet -- state.json; then
+            echo "Stock state did not change."
+            exit 0
+          fi
+
+          git config --global --add safe.directory "$GITHUB_WORKSPACE"
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add state.json
+          git commit -m "chore: update stock state [skip ci]"
+          git pull --rebase origin "$GITHUB_REF_NAME"
+          git push origin "HEAD:$GITHUB_REF_NAME"

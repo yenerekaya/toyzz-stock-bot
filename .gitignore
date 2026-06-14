@@ -1,0 +1,12 @@
+.env
+.venv/
+__pycache__/
+*.py[cod]
+.pytest_cache/
+state.json.tmp
+.DS_Store
+
+# Yerel iki-ajan koordinasyon dosyaları public bot reposuna girmez.
+.agents/
+AGENTS.md
+CLAUDE.md
